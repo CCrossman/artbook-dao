@@ -1,7 +1,9 @@
 create table roles_to_permissions (
     role_id bigint not null,
     permission_id bigint not null,
-    primary key (role_id, permission_id)
+    primary key (role_id, permission_id),
+    constraint fk_roles_to_permissions_role foreign key (role_id) references roles(id) on delete cascade,
+    constraint fk_roles_to_permissions_permission foreign key (permission_id) references permissions(id) on delete cascade
 );
 
 INSERT INTO roles_to_permissions (role_id, permission_id)
@@ -28,7 +30,7 @@ FROM (VALUES
       ('administrator', 'use_image_report'),
       ('administrator', 'use_image_report_comments'),
       ('administrator', 'use_image_report_close'),
-      ('administrator', 'use_image_delete');
+      ('administrator', 'use_image_delete')
  ) AS data(r, p)
  JOIN roles ON roles.name = data.r
- JOIN permissions ON y.name = data.p;
+ JOIN permissions ON permissions.name = data.p;
