@@ -4,7 +4,7 @@ create table roles_to_permissions (
     primary key (role_id, permission_id)
 )
 
-INSERT INTO roles_permissions (role_id, permission_id)
+INSERT INTO roles_to_permissions (role_id, permission_id)
 SELECT roles.id, permissions.id
 FROM (VALUES
       ('guest', 'view_gallery'),
