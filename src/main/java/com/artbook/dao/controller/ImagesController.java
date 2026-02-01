@@ -63,11 +63,10 @@ public class ImagesController {
         throw new UnsupportedOperationException();
     }
 
-    @GetMapping("/{imageId}")
-    public ResponseEntity<ImageDTO> getImage(@PathVariable long imageId) {
-        logger.info("getImage: {}", imageId);
+    @GetMapping("/{imageId}/{imageType}")
+    public ResponseEntity<ImageDTO> getImage(@PathVariable long imageId, @PathVariable String imageType) {
+        logger.info("getImage: {}, {}", imageId, imageType);
         try {
-            ImageType imageType = imageAccessor.getImageType(imageId);
             if (imageType == null) {
                 logger.warn("Image Type not found: {}", imageId);
                 return ResponseEntity.notFound().build();
@@ -79,7 +78,8 @@ public class ImagesController {
                 return ResponseEntity.notFound().build();
             }
 
-            ImageDTO imageDTO = imageAccessor.getImageFile(imageId, imageType, contentType);
+            ImageType type = ImageType.valueOf(imageType.toUpperCase());
+            ImageDTO imageDTO = imageAccessor.getImageFile(imageId, type, contentType);
             if (imageDTO == null) {
                 logger.warn("Image not found: {}", imageId);
                 return ResponseEntity.notFound().build();
