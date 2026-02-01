@@ -63,7 +63,7 @@ public class ImagesController {
         throw new UnsupportedOperationException();
     }
 
-    @GetMapping("/{imageId}")
+    @GetMapping("/{imageId}/{imageType}")
     public ResponseEntity<ImageDTO> getImage(@PathVariable long imageId, @PathVariable String imageType) {
         logger.info("getImage: {}, {}", imageId, imageType);
         try {
