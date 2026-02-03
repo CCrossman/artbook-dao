@@ -69,13 +69,13 @@ public class ImagesController {
         try {
             if (imageType == null) {
                 logger.warn("Image Type not found: {}", imageId);
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.badRequest().build();
             }
 
             String contentType = imageAccessor.getImageContentType(imageId);
             if (contentType == null || contentType.isEmpty()) {
                 logger.warn("Content Type not found: {}", imageId);
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.badRequest().build();
             }
 
             ImageType type = ImageType.valueOf(imageType.toUpperCase());
@@ -91,6 +91,7 @@ public class ImagesController {
             logger.error("Error reading image file", ex);
             return ResponseEntity.internalServerError()
                 .header("x-image-id", String.valueOf(imageId))
+                .header("x-image-type", imageType)
                 .header("x-error-type", ex.getClass().getName())
                 .header("x-error-message", ex.getMessage())
                 .build();
