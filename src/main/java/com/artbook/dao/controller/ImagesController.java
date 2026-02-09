@@ -1,7 +1,7 @@
 package com.artbook.dao.controller;
 
 import com.artbook.dao.domain.*;
-import com.artbook.dao.service.ImageAccessor;
+import com.artbook.dao.service.ImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,74 +19,74 @@ public class ImagesController {
     private static final Logger logger = LoggerFactory.getLogger(ImagesController.class);
 
     @Autowired
-    private ImageAccessor imageAccessor;
+    private ImageService imageService;
 
     @GetMapping
-    public Page<ImageDTO> getImages(@RequestParam MultiValueMap<String, String> queryParams) {
+    public ResponseEntity<Page<ImageDTO>> getImages(@RequestParam MultiValueMap<String, String> queryParams) {
         logger.info("getImages: {}", queryParams);
 
-        String title = queryParams.getFirst("title");
-        logger.info("title: {}", title);
+//        String title = queryParams.getFirst("title");
+//        logger.info("title: {}", title);
+//
+//        List<ImageTag> tags = Optional.ofNullable(queryParams.get("tags"))
+//            .map(lst -> lst.stream().map(ImageTag::fromEncodedString).toList())
+//            .orElse(Collections.emptyList());
+//        logger.info("tags: {}", tags);
+//
+//        // TODO
+//        String startDate = queryParams.getFirst("startDate");
+//        logger.info("startDate: {}", startDate);
+//
+//        // TODO
+//        String endDate = queryParams.getFirst("endDate");
+//        logger.info("endDate: {}", endDate);
+//
+//        int pageNo = Optional.ofNullable(queryParams.getFirst("pageNo"))
+//            .map(Integer::parseInt)
+//            .orElse(1);
+//        logger.info("pageNo: {}", pageNo);
+//
+//        int pageSize = Optional.ofNullable(queryParams.getFirst("pageSize"))
+//            .map(Integer::parseInt)
+//            .orElse(10);
+//        logger.info("pageSize: {}", pageSize);
+//
+//        String sortBy = queryParams.getFirst("sortBy");
+//        logger.info("sortBy: {}", sortBy);
+//
+//        SortOrder sortOrder = Optional.ofNullable(queryParams.getFirst("sortOrder"))
+//            .map(SortOrder::valueOf)
+//            .orElse(SortOrder.UNSORTED);
+//        logger.info("sortOrder: {}", sortOrder);
 
-        List<ImageTag> tags = Optional.ofNullable(queryParams.get("tags"))
-            .map(lst -> lst.stream().map(ImageTag::fromEncodedString).toList())
-            .orElse(Collections.emptyList());
-        logger.info("tags: {}", tags);
-
-        // TODO
-        Object startDate = queryParams.getFirst("startDate");
-        logger.info("startDate: {}", startDate);
-
-        // TODO
-        Object endDate = queryParams.getFirst("endDate");
-        logger.info("endDate: {}", endDate);
-
-        int pageNo = Optional.ofNullable(queryParams.getFirst("pageNo"))
-            .map(Integer::parseInt)
-            .orElse(1);
-        logger.info("pageNo: {}", pageNo);
-
-        int pageSize = Optional.ofNullable(queryParams.getFirst("pageSize"))
-            .map(Integer::parseInt)
-            .orElse(10);
-        logger.info("pageSize: {}", pageSize);
-
-        String sortBy = queryParams.getFirst("sortBy");
-        logger.info("sortBy: {}", sortBy);
-
-        SortOrder sortOrder = Optional.ofNullable(queryParams.getFirst("sortOrder"))
-            .map(SortOrder::valueOf)
-            .orElse(SortOrder.UNSORTED);
-        logger.info("sortOrder: {}", sortOrder);
-
-        // TODO
-        throw new UnsupportedOperationException();
+        return ResponseEntity.notFound().build();
     }
 
     @GetMapping("/{imageId}/{imageType}")
     public ResponseEntity<ImageDTO> getImage(@PathVariable long imageId, @PathVariable String imageType) {
         logger.info("getImage: {}, {}", imageId, imageType);
         try {
-            if (imageType == null) {
-                logger.warn("Image Type not found: {}", imageId);
-                return ResponseEntity.badRequest().build();
-            }
-
-            String contentType = imageAccessor.getImageContentType(imageId);
-            if (contentType == null || contentType.isEmpty()) {
-                logger.warn("Content Type not found: {}", imageId);
-                return ResponseEntity.badRequest().build();
-            }
-
-            ImageType type = ImageType.valueOf(imageType.toUpperCase());
-            ImageDTO imageDTO = imageAccessor.getImageFile(imageId, type, contentType);
-            if (imageDTO == null) {
-                logger.warn("Image not found: {}", imageId);
-                return ResponseEntity.notFound().build();
-            }
-
-            logger.atDebug().log("Image found: {}", imageDTO);
-            return ResponseEntity.ok(imageDTO);
+//            if (imageType == null) {
+//                logger.warn("Image Type not found: {}", imageId);
+//                return ResponseEntity.badRequest().build();
+//            }
+//
+//            String contentType = imageAccessor.getImageContentType(imageId);
+//            if (contentType == null || contentType.isEmpty()) {
+//                logger.warn("Content Type not found: {}", imageId);
+//                return ResponseEntity.badRequest().build();
+//            }
+//
+//            ImageType type = ImageType.valueOf(imageType.toUpperCase());
+//            ImageDTO imageDTO = imageAccessor.getImageFile(imageId, type, contentType);
+//            if (imageDTO == null) {
+//                logger.warn("Image not found: {}", imageId);
+//                return ResponseEntity.notFound().build();
+//            }
+//
+//            logger.atDebug().log("Image found: {}", imageDTO);
+//            return ResponseEntity.ok(imageDTO);
+            return ResponseEntity.notFound().build();
         } catch (Exception ex) {
             logger.error("Error reading image file", ex);
             return ResponseEntity.internalServerError()
@@ -112,13 +112,14 @@ public class ImagesController {
         logger.info("tags: {}", tags);
 
         try {
-            Long imageId = imageAccessor.uploadImage(image);
-            logger.atDebug().log("Image uploaded successfully. ImageId: {}", imageId);
-
-            if (imageId == null) {
-                return ResponseEntity.unprocessableEntity().body(new ImageUploadResponse(null, "Failed to upload image but not clear why."));
-            }
-            return ResponseEntity.ok(new ImageUploadResponse(imageId, null));
+//            Long imageId = imageAccessor.uploadImage(image);
+//            logger.atDebug().log("Image uploaded successfully. ImageId: {}", imageId);
+//
+//            if (imageId == null) {
+//                return ResponseEntity.unprocessableEntity().body(new ImageUploadResponse(null, "Failed to upload image but not clear why."));
+//            }
+//            return ResponseEntity.ok(new ImageUploadResponse(imageId, null));
+            return ResponseEntity.notFound().build();
         } catch (Exception e) {
             logger.error("Error reading image file", e);
             String message = e.getClass().getName() + ": " + e.getMessage();
