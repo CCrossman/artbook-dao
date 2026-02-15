@@ -1,36 +1,180 @@
 package com.artbook.dao.service;
 
+import com.artbook.dao.domain.ImageDTO;
+import com.artbook.dao.domain.ImageTag;
+import com.artbook.dao.domain.ImageType;
 import com.artbook.dao.entity.ImageEntity;
+import com.artbook.dao.repository.ImageEntitySpecifications;
 import com.artbook.dao.repository.ImageRepository;
-import com.artbook.dao.repository.RepositoryFilter;
+import com.artbook.dao.util.Converter;
+import com.jecklgamis.util.Try;
+import com.jecklgamis.util.TryFactory;
+import io.micrometer.common.util.StringUtils;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Sort;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.*;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.MultiValueMap;
 
-import java.util.List;
-import java.util.stream.Stream;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Service
 public class ImageService {
+    private static final Logger logger = LoggerFactory.getLogger(ImageService.class);
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ISO_ZONED_DATE_TIME;
+    private static final int DEFAULT_PAGE_NUMBER = 1;
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_PAGE_SIZE = 100;
 
     @Autowired
     public ImageRepository imageRepository;
 
-    public Page<ImageEntity> getImagesByFilter(RepositoryFilter<ImageEntity> filter) {
-        final long totalCount;
-        try (Stream<ImageEntity> stream = imageRepository.streamAllBy(Sort.unsorted())) {
-            totalCount = stream.filter(filter).count();
+    @Autowired
+    private Converter<ImageEntity,ImageDTO> imageConverter;
+
+    @Value("${app.location.images.full}")
+    private String fullImageLocation;
+
+    @Value("${app.location.images.preview}")
+    private String previewImageLocation;
+
+    @Value("${app.location.images.thumbnail}")
+    private String thumbnailImageLocation;
+
+    @Value("${app.location.images.twitter}")
+    private String twitterImageLocation;
+
+    private Map<ImageType, String> imageTypeToLocation;
+
+    @PostConstruct
+    public void init() {
+        this.imageTypeToLocation = new EnumMap<>(ImageType.class);
+        imageTypeToLocation.put(ImageType.FULL, fullImageLocation);
+        imageTypeToLocation.put(ImageType.PREVIEW, previewImageLocation);
+        imageTypeToLocation.put(ImageType.THUMBNAIL, thumbnailImageLocation);
+        imageTypeToLocation.put(ImageType.TWITTER, twitterImageLocation);
+        logger.info("imageTypeToLocation: {}", imageTypeToLocation);
+    }
+
+    public ImageDTO getImage(long imageId, ImageType imageType) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    public Page<ImageDTO> getImages(ImageType imageType, MultiValueMap<String, String> queryParams) {
+
+        int oneIndexedPageNo = TryFactory.attempt(() -> queryParams.getFirst("pageNo"))
+            .map(Integer::parseInt)
+            .getOrElse(() -> DEFAULT_PAGE_NUMBER);
+        logger.info("pageNo: {}", oneIndexedPageNo);
+
+        int pageSize = TryFactory.attempt(() -> queryParams.getFirst("pageSize"))
+            .map(Integer::parseInt)
+            .getOrElse(() -> DEFAULT_PAGE_SIZE);
+        logger.info("pageSize: {}", pageSize);
+
+        if (pageSize > MAX_PAGE_SIZE) {
+            logger.warn("Page Size is limited to " + MAX_PAGE_SIZE + " or less");
+            pageSize = MAX_PAGE_SIZE;
         }
 
-        try (Stream<ImageEntity> stream = imageRepository.streamAllBy(filter.getOrder())) {
-            List<ImageEntity> items = stream.filter(filter)
-                .skip(filter.getOffset())
-                .limit(filter.getLimit())
-                .toList();
+        String sortBy = queryParams.getFirst("sortBy");
+        logger.info("sortBy: {}", sortBy);
 
-            return new PageImpl<>(items, filter.getPageable(), totalCount);
+        String sortOrder = queryParams.getFirst("sortOrder");
+        logger.info("sortOrder: {}", sortOrder);
+
+        Pageable pageable = PageRequest.of(oneIndexedPageNo, pageSize, getSort(sortBy, sortOrder));
+
+        // definitely an empty page
+        if (pageSize <= 0 || oneIndexedPageNo < 1) {
+            return Page.empty(pageable);
         }
+
+        List<Specification<ImageEntity>> specs = new ArrayList<>();
+
+        logger.info("imageType: {}", imageType);
+        if (imageType != null) {
+            specs.add(ImageEntitySpecifications.isImageType(imageType));
+        }
+
+        String title = queryParams.getFirst("title");
+        logger.info("title: {}", title);
+
+        if (StringUtils.isNotBlank(title)) {
+            specs.add(ImageEntitySpecifications.titleContains(title));
+        }
+
+        List<ImageTag> tags = getImageTags(TryFactory.attempt(() -> queryParams.get("tags")));
+        logger.info("tags: {}", tags);
+
+        if (!CollectionUtils.isEmpty(tags)) {
+            // TODO: specs.add(ImageEntitySpecifications.includesTags(tags));
+        }
+
+        ZonedDateTime startDate = TryFactory.attempt(() -> queryParams.getFirst("startDate"))
+            .filter(Objects::nonNull)
+            .flatMap(s -> TryFactory.attempt(() -> ZonedDateTime.from(formatter.parse(s))))
+            .getOrElse(() -> null);
+        logger.info("startDate: {}", startDate);
+
+        if (startDate != null) {
+            specs.add(ImageEntitySpecifications.createdAfter(startDate));
+        }
+
+        ZonedDateTime endDate = TryFactory.attempt(() -> queryParams.getFirst("endDate"))
+            .filter(Objects::nonNull)
+            .flatMap(s -> TryFactory.attempt(() -> ZonedDateTime.from(formatter.parse(s))))
+            .getOrElse(() -> null);
+        logger.info("endDate: {}", endDate);
+
+        if (endDate != null) {
+            specs.add(ImageEntitySpecifications.createdBefore(endDate));
+        }
+
+        var specifications = ImageEntitySpecifications.all(specs);
+        return imageRepository.findAll(specifications, pageable).map(this::toDTO);
+    }
+
+    private ImageDTO toDTO(ImageEntity imageEntity) {
+        Try<ImageDTO> dtoTry = imageConverter.convert(imageEntity);
+
+        return dtoTry.recover(ex -> {
+            Long id = (imageEntity == null ? null : imageEntity.getId());
+            logger.error("Failed to convert ImageEntity id={}", id, ex);
+            return ImageDTO.builder().build();
+        }).getOrElse(() -> null);
+    }
+
+    private static Sort getSort(String sortBy, String sortOrder) {
+        if ("asc".equalsIgnoreCase(sortOrder) || "ascending".equalsIgnoreCase(sortOrder)) {
+            return Sort.by(Sort.Direction.ASC, sortBy);
+        }
+        if ("desc".equalsIgnoreCase(sortOrder) || "descending".equalsIgnoreCase(sortOrder)) {
+            return Sort.by(Sort.Direction.DESC, sortBy);
+        }
+        logger.error("Unrecognized sort parameters: by={}, order={}", sortBy, sortOrder);
+        return Sort.unsorted();
+    }
+
+    private static List<ImageTag> getImageTags(Try<List<String>> tryTags) {
+        if (tryTags == null) {
+            return Collections.emptyList();
+        }
+
+        Try<List<ImageTag>> tried = tryTags
+            .map(lst -> lst.stream().map(ImageTag::fromEncodedString).toList())
+            .recover(err -> {
+                logger.error("Error reading tags", err);
+                return Collections.emptyList();
+            });
+
+        return tried.getOrElse(Collections::emptyList);
     }
 }

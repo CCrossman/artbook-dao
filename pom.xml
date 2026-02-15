@@ -24,6 +24,12 @@
 	</properties>
 
 	<dependencies>
+		<!-- Source: https://mvnrepository.com/artifact/com.jecklgamis/try-monad -->
+		<dependency>
+			<groupId>com.jecklgamis</groupId>
+			<artifactId>try-monad</artifactId>
+			<version>1.0</version>
+		</dependency>
 		<dependency>
 			<groupId>io.hypersistence</groupId>
 			<artifactId>hypersistence-utils-hibernate-63</artifactId>

@@ -11,7 +11,6 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.swing.*;
 import java.util.*;
 
 @RestController
@@ -25,69 +24,31 @@ public class ImagesController {
     @GetMapping
     public ResponseEntity<Page<ImageDTO>> getImages(@RequestParam MultiValueMap<String, String> queryParams) {
         logger.info("getImages: {}", queryParams);
-
-//        String title = queryParams.getFirst("title");
-//        logger.info("title: {}", title);
-//
-//        List<ImageTag> tags = Optional.ofNullable(queryParams.get("tags"))
-//            .map(lst -> lst.stream().map(ImageTag::fromEncodedString).toList())
-//            .orElse(Collections.emptyList());
-//        logger.info("tags: {}", tags);
-//
-//        // TODO
-//        String startDate = queryParams.getFirst("startDate");
-//        logger.info("startDate: {}", startDate);
-//
-//        // TODO
-//        String endDate = queryParams.getFirst("endDate");
-//        logger.info("endDate: {}", endDate);
-//
-//        int pageNo = Optional.ofNullable(queryParams.getFirst("pageNo"))
-//            .map(Integer::parseInt)
-//            .orElse(1);
-//        logger.info("pageNo: {}", pageNo);
-//
-//        int pageSize = Optional.ofNullable(queryParams.getFirst("pageSize"))
-//            .map(Integer::parseInt)
-//            .orElse(10);
-//        logger.info("pageSize: {}", pageSize);
-//
-//        String sortBy = queryParams.getFirst("sortBy");
-//        logger.info("sortBy: {}", sortBy);
-//
-//        SortOrder sortOrder = Optional.ofNullable(queryParams.getFirst("sortOrder"))
-//            .map(SortOrder::valueOf)
-//            .orElse(SortOrder.UNSORTED);
-//        logger.info("sortOrder: {}", sortOrder);
-
-        return ResponseEntity.notFound().build();
+        try {
+            Page<ImageDTO> page = imageService.getImages(ImageType.THUMBNAIL, queryParams);
+            return ResponseEntity.ok(page);
+        } catch (Exception e) {
+            logger.error("Error reading images", e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @GetMapping("/{imageId}/{imageType}")
     public ResponseEntity<ImageDTO> getImage(@PathVariable long imageId, @PathVariable String imageType) {
         logger.info("getImage: {}, {}", imageId, imageType);
         try {
-//            if (imageType == null) {
-//                logger.warn("Image Type not found: {}", imageId);
-//                return ResponseEntity.badRequest().build();
-//            }
-//
-//            String contentType = imageAccessor.getImageContentType(imageId);
-//            if (contentType == null || contentType.isEmpty()) {
-//                logger.warn("Content Type not found: {}", imageId);
-//                return ResponseEntity.badRequest().build();
-//            }
-//
-//            ImageType type = ImageType.valueOf(imageType.toUpperCase());
-//            ImageDTO imageDTO = imageAccessor.getImageFile(imageId, type, contentType);
-//            if (imageDTO == null) {
-//                logger.warn("Image not found: {}", imageId);
-//                return ResponseEntity.notFound().build();
-//            }
-//
-//            logger.atDebug().log("Image found: {}", imageDTO);
-//            return ResponseEntity.ok(imageDTO);
-            return ResponseEntity.notFound().build();
+            ImageType it = ImageType.fromString(imageType);
+            if (it == null) {
+                logger.warn("Image Type not found: {}", imageType);
+                return ResponseEntity.badRequest().build();
+            }
+            ImageDTO dto = imageService.getImage(imageId, it);
+            if (dto == null) {
+                logger.warn("Image not found: {} {}", imageId, imageType);
+                return ResponseEntity.badRequest().build();
+            }
+            logger.atDebug().log("Image found: {}", dto);
+            return ResponseEntity.ok(dto);
         } catch (Exception ex) {
             logger.error("Error reading image file", ex);
             return ResponseEntity.internalServerError()
