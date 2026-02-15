@@ -1,5 +1,6 @@
 package com.artbook.dao.entity;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.Builder;
@@ -29,7 +30,7 @@ public class ImageEntity {
 
     @Type(JsonBinaryType.class)
     @Column(name = "properties", columnDefinition = "jsonb")
-    private Map<String, Object> properties;
+    private JsonNode properties;
 
     @Column(name = "created_at")
     @TimeZoneStorage(TimeZoneStorageType.NATIVE)
@@ -39,20 +40,33 @@ public class ImageEntity {
     @TimeZoneStorage(TimeZoneStorageType.NATIVE)
     private ZonedDateTime updatedAt;
 
+    public String getContentType() {
+        return properties.path("contentType").asText();
+    }
+
     public String getDescription() {
-        return (String) properties.get("description");
+        return properties.path("description").asText();
+    }
+
+    public Integer getLikes() {
+        JsonNode likeProperty = properties.path("likes");
+        if (likeProperty != null && likeProperty.isInt()) {
+            return likeProperty.intValue();
+        }
+        return null;
     }
 
     public Set<String> getTags() {
-        Object rawTags = properties.get("tags");
-        if (rawTags == null) {
-            return Collections.emptySet();
-        }
-        Collection<?> tags = (Collection<?>) rawTags;
-        return tags.stream().map(Object::toString).collect(Collectors.toCollection(TreeSet::new));
+        return properties.path("tags").valueStream()
+            .map(JsonNode::textValue)
+            .collect(Collectors.toCollection(TreeSet::new));
     }
 
     public String getTitle() {
-        return (String) properties.get("title");
+        return properties.path("title").asText();
+    }
+
+    public Boolean isLiked() {
+        return properties.path("liked").asBoolean();
     }
 }
