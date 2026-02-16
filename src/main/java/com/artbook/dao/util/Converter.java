@@ -1,12 +1,20 @@
 package com.artbook.dao.util;
 
-import com.jecklgamis.util.Try;
-
 @FunctionalInterface
 public interface Converter<T,U> {
-    public Try<U> convert(T item);
+    public U convert(T item) throws Exception;
+
+    public default U convertUnchecked(T item) {
+        try {
+            return convert(item);
+        } catch (RuntimeException re) {
+            throw re;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public default <V> Converter<T,V> andThen(Converter<U,V> that) {
-        return item -> this.convert(item).flatMap(that::convert);
+        return item -> that.convert(this.convert(item));
     }
 }

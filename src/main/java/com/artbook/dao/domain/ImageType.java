@@ -14,4 +14,8 @@ public enum ImageType {
         }
         return null;
     }
+
+    public String toDatabaseValue() {
+        return name().toUpperCase();
+    }
 }

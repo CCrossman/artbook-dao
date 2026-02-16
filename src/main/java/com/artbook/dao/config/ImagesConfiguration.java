@@ -6,7 +6,6 @@ import com.artbook.dao.entity.ImageEntity;
 import com.artbook.dao.service.DefaultImageEntityConverter;
 import com.artbook.dao.service.DefaultResourceConverter;
 import com.artbook.dao.util.Converter;
-import com.jecklgamis.util.TryFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
@@ -21,13 +20,13 @@ public class ImagesConfiguration {
 
     @Bean
     public Converter<String, ImageTag> imageTagConverter() {
-        return item -> TryFactory.attempt(() -> {
+        return item -> {
             if (item == null) {
                 return null;
             }
             String[] parts = item.split(":", 2);
             return new ImageTag(parts[0], parts[1]);
-        });
+        };
     }
 
     @Bean

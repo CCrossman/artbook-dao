@@ -24,6 +24,7 @@ import org.springframework.util.MultiValueMap;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ImageService {
@@ -34,7 +35,7 @@ public class ImageService {
     private static final int MAX_PAGE_SIZE = 100;
 
     @Autowired
-    public ImageRepository imageRepository;
+    private ImageRepository imageRepository;
 
     @Autowired
     private Converter<ImageEntity,ImageDTO> imageConverter;
@@ -64,7 +65,16 @@ public class ImageService {
     }
 
     public ImageDTO getImage(long imageId, ImageType imageType) {
-        throw new UnsupportedOperationException("TODO");
+        logger.info("getImage({},{})", imageId, imageType);
+
+        List<Specification<ImageEntity>> specs = new ArrayList<>();
+        specs.add(ImageEntitySpecifications.hasId(imageId));
+        specs.add(ImageEntitySpecifications.isImageType(imageType));
+
+        return imageRepository
+            .findOne(ImageEntitySpecifications.all(specs))
+            .map(ie -> imageConverter.convertUnchecked(ie))
+            .orElse(null);
     }
 
     public Page<ImageDTO> getImages(ImageType imageType, MultiValueMap<String, String> queryParams) {
@@ -111,11 +121,11 @@ public class ImageService {
             specs.add(ImageEntitySpecifications.titleContains(title));
         }
 
-        List<ImageTag> tags = getImageTags(TryFactory.attempt(() -> queryParams.get("tags")));
+        Map<String,String> tags = parseImageTags(TryFactory.attempt(() -> queryParams.get("tags")));
         logger.info("tags: {}", tags);
 
         if (!CollectionUtils.isEmpty(tags)) {
-            // TODO: specs.add(ImageEntitySpecifications.includesTags(tags));
+            specs.add(ImageEntitySpecifications.hasTags(tags));
         }
 
         ZonedDateTime startDate = TryFactory.attempt(() -> queryParams.getFirst("startDate"))
@@ -138,18 +148,10 @@ public class ImageService {
             specs.add(ImageEntitySpecifications.createdBefore(endDate));
         }
 
-        var specifications = ImageEntitySpecifications.all(specs);
-        return imageRepository.findAll(specifications, pageable).map(this::toDTO);
-    }
-
-    private ImageDTO toDTO(ImageEntity imageEntity) {
-        Try<ImageDTO> dtoTry = imageConverter.convert(imageEntity);
-
-        return dtoTry.recover(ex -> {
-            Long id = (imageEntity == null ? null : imageEntity.getId());
-            logger.error("Failed to convert ImageEntity id={}", id, ex);
-            return ImageDTO.builder().build();
-        }).getOrElse(() -> null);
+        Specification<ImageEntity> specifications = ImageEntitySpecifications.all(specs);
+        return imageRepository
+            .findAll(specifications, pageable)
+            .map(imageEntity -> imageConverter.convertUnchecked(imageEntity));
     }
 
     private static Sort getSort(String sortBy, String sortOrder) {
@@ -163,18 +165,20 @@ public class ImageService {
         return Sort.unsorted();
     }
 
-    private static List<ImageTag> getImageTags(Try<List<String>> tryTags) {
+    private static Map<String,String> parseImageTags(Try<List<String>> tryTags) {
         if (tryTags == null) {
-            return Collections.emptyList();
+            return Collections.emptyMap();
         }
 
-        Try<List<ImageTag>> tried = tryTags
-            .map(lst -> lst.stream().map(ImageTag::fromEncodedString).toList())
+        Try<Map<String,String>> tried = tryTags
+            .map(lst -> lst.stream()
+                .map(ImageTag::fromEncodedString)
+                .collect(Collectors.toMap(ImageTag::key, ImageTag::value)))
             .recover(err -> {
                 logger.error("Error reading tags", err);
-                return Collections.emptyList();
+                return Collections.emptyMap();
             });
 
-        return tried.getOrElse(Collections::emptyList);
+        return tried.getOrElse(Collections::emptyMap);
     }
 }

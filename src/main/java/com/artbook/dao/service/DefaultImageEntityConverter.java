@@ -4,8 +4,6 @@ import com.artbook.dao.domain.ImageDTO;
 import com.artbook.dao.domain.ImageTag;
 import com.artbook.dao.entity.ImageEntity;
 import com.artbook.dao.util.Converter;
-import com.jecklgamis.util.Try;
-import com.jecklgamis.util.TryFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,37 +25,32 @@ public class DefaultImageEntityConverter implements Converter<ImageEntity, Image
     private Converter<String, Resource> resourceConverter;
 
     @Override
-    public Try<ImageDTO> convert(ImageEntity item) {
-        return TryFactory.attempt(() -> {
-            ImageDTO.ImageDTOBuilder b = ImageDTO.builder();
+    public ImageDTO convert(ImageEntity item) throws Exception {
+        ImageDTO.ImageDTOBuilder b = ImageDTO.builder();
 
-            if (item != null) {
-                b.imageId(item.getId());
-                b.title(item.getTitle());
-                b.description(item.getDescription());
-                b.tags(convertTags(item.getTags()));
-                b.resource(convertResource(item.getUri()));
-                b.contentType(item.getContentType());
-                b.liked(item.isLiked());
-                b.likes(item.getLikes());
-            }
-            return b.build();
-        });
+        if (item != null) {
+            b.imageId(item.getId());
+            b.title(item.getTitle());
+            b.description(item.getDescription());
+            b.tags(convertTags(item.getTags()));
+            b.resource(resourceConverter.convert(item.getUri()));
+            b.contentType(item.getContentType());
+            b.liked(item.isLiked());
+            b.likes(item.getLikes());
+        }
+        return b.build();
     }
 
-    private List<ImageTag> convertTags(Collection<String> tags) {
+    private List<ImageTag> convertTags(Collection<String> tags) throws Exception {
         List<ImageTag> imageTags = new ArrayList<>(tags.size());
 
         for (String tag : tags) {
-            Try<ImageTag> imageTagTry = imageTagConverter.convert(tag);
-            if (imageTagTry != null) {
-                imageTagTry.forEach(imageTags::add);
+            ImageTag imageTag = imageTagConverter.convert(tag);
+            if (imageTag != null) {
+                imageTags.add(imageTag);
             }
         }
         return imageTags;
     }
 
-    private Resource convertResource(String uri) {
-        return resourceConverter.convert(uri).get();
-    }
 }
