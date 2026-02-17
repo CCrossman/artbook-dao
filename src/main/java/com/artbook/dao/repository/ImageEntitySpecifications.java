@@ -24,6 +24,9 @@ public class ImageEntitySpecifications {
 
     public static Specification<ImageEntity> all(Collection<Specification<ImageEntity>> specifications) {
         return (root, query, cb) -> {
+            if (specifications == null || specifications.isEmpty()) {
+                return cb.conjunction(); // returns "true" (no filter)
+            }
             Predicate[] predicates = specifications.stream()
                 .map(spec -> spec.toPredicate(root, query, cb))
                 .toArray(Predicate[]::new);
@@ -32,10 +35,12 @@ public class ImageEntitySpecifications {
     }
 
     public static Specification<ImageEntity> createdAfter(ZonedDateTime zdt) {
+        requireNonNull(zdt);
         return (root, query, cb) -> cb.greaterThanOrEqualTo(root.get("created_at"), zdt);
     }
 
     public static Specification<ImageEntity> createdBefore(ZonedDateTime zdt) {
+        requireNonNull(zdt);
         return (root, query, cb) -> cb.lessThanOrEqualTo(root.get("created_at"), zdt);
     }
 
@@ -44,9 +49,9 @@ public class ImageEntitySpecifications {
     }
 
     public static Specification<ImageEntity> hasTags(Map<String,String> searchTags) {
-        return (root, query, builder) -> {
+        return (root, query, cb) -> {
             if (searchTags == null || searchTags.isEmpty()) {
-                return builder.conjunction(); // returns "true" (no filter)
+                return cb.conjunction(); // returns "true" (no filter)
             }
             // because the frontend will always give us String tag values, and jsonb '@>'
             // will not convert types when matching, we MUST make sure the JSON tag property
@@ -60,12 +65,12 @@ public class ImageEntitySpecifications {
 
                 // Call the custom SQL function "jsonb_match"
                 // usage: jsonb_match(table.tags, '{"camera":"Sony"}')
-                return builder.isTrue(
-                    builder.function(
+                return cb.isTrue(
+                    cb.function(
                         "jsonb_match",   // Function name in DB
                         Boolean.class,   // Return type
                         root.get("properties"), // Column
-                        builder.literal(jsonString) // The JSON argument
+                        cb.literal(jsonString) // The JSON argument
                     )
                 );
             } catch (JsonProcessingException e) {

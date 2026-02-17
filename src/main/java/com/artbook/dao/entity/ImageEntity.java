@@ -48,13 +48,13 @@ public class ImageEntity {
         return properties.path("description").asText();
     }
 
-    public Integer getLikes() {
-        JsonNode likeProperty = properties.path("likes");
-        if (likeProperty != null && likeProperty.isInt()) {
-            return likeProperty.intValue();
-        }
-        return null;
-    }
+//    public Integer getLikes() {
+//        JsonNode likeProperty = properties.path("likes");
+//        if (likeProperty != null && likeProperty.isInt()) {
+//            return likeProperty.intValue();
+//        }
+//        return null;
+//    }
 
     public Set<String> getTags() {
         return properties.path("tags").valueStream()
@@ -66,7 +66,7 @@ public class ImageEntity {
         return properties.path("title").asText();
     }
 
-    public Boolean isLiked() {
-        return properties.path("liked").asBoolean();
-    }
+//    public Boolean isLiked() {
+//        return properties.path("liked").asBoolean();
+//    }
 }

@@ -1,34 +1,31 @@
 package com.artbook.dao.service;
 
 import com.artbook.dao.domain.ImageDTO;
-import com.artbook.dao.domain.ImageTag;
+import com.artbook.dao.domain.ImageTagList;
 import com.artbook.dao.domain.ImageType;
 import com.artbook.dao.entity.ImageEntity;
 import com.artbook.dao.repository.ImageEntitySpecifications;
 import com.artbook.dao.repository.ImageRepository;
 import com.artbook.dao.util.Converter;
-import com.jecklgamis.util.Try;
-import com.jecklgamis.util.TryFactory;
 import io.micrometer.common.util.StringUtils;
-import jakarta.annotation.PostConstruct;
+import io.vavr.control.Try;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.MultiValueMap;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
+
+import static java.util.Objects.requireNonNull;
 
 @Service
-public class ImageService {
-    private static final Logger logger = LoggerFactory.getLogger(ImageService.class);
+public class ImageQueryService {
+    private static final Logger logger = LoggerFactory.getLogger(ImageQueryService.class);
     private static final DateTimeFormatter formatter = DateTimeFormatter.ISO_ZONED_DATE_TIME;
     private static final int DEFAULT_PAGE_NUMBER = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
@@ -40,32 +37,9 @@ public class ImageService {
     @Autowired
     private Converter<ImageEntity,ImageDTO> imageConverter;
 
-    @Value("${app.location.images.full}")
-    private String fullImageLocation;
-
-    @Value("${app.location.images.preview}")
-    private String previewImageLocation;
-
-    @Value("${app.location.images.thumbnail}")
-    private String thumbnailImageLocation;
-
-    @Value("${app.location.images.twitter}")
-    private String twitterImageLocation;
-
-    private Map<ImageType, String> imageTypeToLocation;
-
-    @PostConstruct
-    public void init() {
-        this.imageTypeToLocation = new EnumMap<>(ImageType.class);
-        imageTypeToLocation.put(ImageType.FULL, fullImageLocation);
-        imageTypeToLocation.put(ImageType.PREVIEW, previewImageLocation);
-        imageTypeToLocation.put(ImageType.THUMBNAIL, thumbnailImageLocation);
-        imageTypeToLocation.put(ImageType.TWITTER, twitterImageLocation);
-        logger.info("imageTypeToLocation: {}", imageTypeToLocation);
-    }
-
-    public ImageDTO getImage(long imageId, ImageType imageType) {
-        logger.info("getImage({},{})", imageId, imageType);
+    public ImageDTO getImageMetadata(ImageType imageType, long imageId) {
+        logger.info("getImageMetadata({},{})", imageType, imageId);
+        requireNonNull(imageType);
 
         List<Specification<ImageEntity>> specs = new ArrayList<>();
         specs.add(ImageEntitySpecifications.hasId(imageId));
@@ -77,14 +51,15 @@ public class ImageService {
             .orElse(null);
     }
 
-    public Page<ImageDTO> getImages(ImageType imageType, MultiValueMap<String, String> queryParams) {
+    public Page<ImageDTO> getImageMetadata(ImageType imageType, MultiValueMap<String, String> queryParams) {
+        logger.info("getImageMetadata({},{})", imageType, queryParams);
 
-        int oneIndexedPageNo = TryFactory.attempt(() -> queryParams.getFirst("pageNo"))
+        int oneIndexedPageNo = Try.ofSupplier(() -> queryParams.getFirst("pageNo"))
             .map(Integer::parseInt)
             .getOrElse(() -> DEFAULT_PAGE_NUMBER);
         logger.info("pageNo: {}", oneIndexedPageNo);
 
-        int pageSize = TryFactory.attempt(() -> queryParams.getFirst("pageSize"))
+        int pageSize = Try.ofSupplier(() -> queryParams.getFirst("pageSize"))
             .map(Integer::parseInt)
             .getOrElse(() -> DEFAULT_PAGE_SIZE);
         logger.info("pageSize: {}", pageSize);
@@ -121,16 +96,19 @@ public class ImageService {
             specs.add(ImageEntitySpecifications.titleContains(title));
         }
 
-        Map<String,String> tags = parseImageTags(TryFactory.attempt(() -> queryParams.get("tags")));
+        ImageTagList tags = Try.ofSupplier(() -> queryParams.get("tags"))
+            .filter(Objects::nonNull)
+            .map(ImageTagList::fromRequestParameter)
+            .getOrElse(() -> ImageTagList.EMPTY);
         logger.info("tags: {}", tags);
 
-        if (!CollectionUtils.isEmpty(tags)) {
-            specs.add(ImageEntitySpecifications.hasTags(tags));
+        if (tags != null) {
+            specs.add(ImageEntitySpecifications.hasTags(tags.toMap()));
         }
 
-        ZonedDateTime startDate = TryFactory.attempt(() -> queryParams.getFirst("startDate"))
+        ZonedDateTime startDate = Try.ofSupplier(() -> queryParams.getFirst("startDate"))
             .filter(Objects::nonNull)
-            .flatMap(s -> TryFactory.attempt(() -> ZonedDateTime.from(formatter.parse(s))))
+            .flatMap(s -> Try.ofCallable(() -> ZonedDateTime.from(formatter.parse(s))))
             .getOrElse(() -> null);
         logger.info("startDate: {}", startDate);
 
@@ -138,9 +116,9 @@ public class ImageService {
             specs.add(ImageEntitySpecifications.createdAfter(startDate));
         }
 
-        ZonedDateTime endDate = TryFactory.attempt(() -> queryParams.getFirst("endDate"))
+        ZonedDateTime endDate = Try.ofSupplier(() -> queryParams.getFirst("endDate"))
             .filter(Objects::nonNull)
-            .flatMap(s -> TryFactory.attempt(() -> ZonedDateTime.from(formatter.parse(s))))
+            .flatMap(s -> Try.ofCallable(() -> ZonedDateTime.from(formatter.parse(s))))
             .getOrElse(() -> null);
         logger.info("endDate: {}", endDate);
 
@@ -163,22 +141,5 @@ public class ImageService {
         }
         logger.error("Unrecognized sort parameters: by={}, order={}", sortBy, sortOrder);
         return Sort.unsorted();
-    }
-
-    private static Map<String,String> parseImageTags(Try<List<String>> tryTags) {
-        if (tryTags == null) {
-            return Collections.emptyMap();
-        }
-
-        Try<Map<String,String>> tried = tryTags
-            .map(lst -> lst.stream()
-                .map(ImageTag::fromEncodedString)
-                .collect(Collectors.toMap(ImageTag::key, ImageTag::value)))
-            .recover(err -> {
-                logger.error("Error reading tags", err);
-                return Collections.emptyMap();
-            });
-
-        return tried.getOrElse(Collections::emptyMap);
     }
 }

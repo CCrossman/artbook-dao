@@ -1,7 +1,12 @@
 package com.artbook.dao.controller;
 
 import com.artbook.dao.domain.*;
-import com.artbook.dao.service.ImageService;
+import com.artbook.dao.service.ImagePersistenceService;
+import com.artbook.dao.service.ImageQueryService;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.vavr.control.Try;
+import org.apache.el.util.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,19 +18,24 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 
+import static java.util.Objects.requireNonNull;
+
 @RestController
 @RequestMapping("/api/v1/images")
 public class ImagesController {
     private static final Logger logger = LoggerFactory.getLogger(ImagesController.class);
 
     @Autowired
-    private ImageService imageService;
+    private ImageQueryService imageQueryService;
+
+    @Autowired
+    private ImagePersistenceService imagePersistenceService;
 
     @GetMapping
-    public ResponseEntity<Page<ImageDTO>> getImages(@RequestParam MultiValueMap<String, String> queryParams) {
-        logger.info("getImages: {}", queryParams);
+    public ResponseEntity<Page<ImageDTO>> getImageMetadata(@RequestParam MultiValueMap<String, String> queryParams) {
+        logger.info("getImageMetadata: {}", queryParams);
         try {
-            Page<ImageDTO> page = imageService.getImages(ImageType.THUMBNAIL, queryParams);
+            Page<ImageDTO> page = imageQueryService.getImageMetadata(ImageType.THUMBNAIL, queryParams);
             return ResponseEntity.ok(page);
         } catch (Exception e) {
             logger.error("Error reading images", e);
@@ -34,15 +44,15 @@ public class ImagesController {
     }
 
     @GetMapping("/{imageId}/{imageType}")
-    public ResponseEntity<ImageDTO> getImage(@PathVariable long imageId, @PathVariable String imageType) {
-        logger.info("getImage: {}, {}", imageId, imageType);
+    public ResponseEntity<ImageDTO> getImageMetadata(@PathVariable long imageId, @PathVariable String imageType) {
+        logger.info("getImageMetadata: {}, {}", imageId, imageType);
         try {
             ImageType it = ImageType.fromString(imageType);
             if (it == null) {
                 logger.warn("Image Type not found: {}", imageType);
                 return ResponseEntity.badRequest().build();
             }
-            ImageDTO dto = imageService.getImage(imageId, it);
+            ImageDTO dto = imageQueryService.getImageMetadata(it, imageId);
             if (dto == null) {
                 logger.warn("Image not found: {} {}", imageId, imageType);
                 return ResponseEntity.badRequest().build();
@@ -67,25 +77,43 @@ public class ImagesController {
             @RequestParam("image") MultipartFile image,
             @RequestParam(value = "tags", required = false) List<String> tags
     ) {
-        logger.info("uploadImage");
-        logger.info("title: {}", title);
-        logger.info("description: {}", description);
-        logger.info("image: {}", image);
-        logger.info("tags: {}", tags);
-
         try {
-//            Long imageId = imageAccessor.uploadImage(image);
-//            logger.atDebug().log("Image uploaded successfully. ImageId: {}", imageId);
-//
-//            if (imageId == null) {
-//                return ResponseEntity.unprocessableEntity().body(new ImageUploadResponse(null, "Failed to upload image but not clear why."));
-//            }
-//            return ResponseEntity.ok(new ImageUploadResponse(imageId, null));
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            logger.error("Error reading image file", e);
-            String message = e.getClass().getName() + ": " + e.getMessage();
-            return ResponseEntity.internalServerError().body(new ImageUploadResponse(null, message));
+            requireNonNull(description);
+            requireNonNull(image);
+            requireNonNull(title);
+
+            UUID globalId = UUID.randomUUID();
+            ImageTagList imageTags = tags == null ? null : ImageTagList.fromRequestParameter(tags);
+
+            logger.info("uploadImage");
+            logger.info("- uuid: {}", globalId);
+            logger.info("- title: {}", title);
+            logger.info("- description: {}", description);
+            logger.info("- image: {}", image);
+            logger.info("- tags: {}", imageTags);
+
+            Try<ImageSavedSummary> trySummary = imagePersistenceService.saveImage(globalId, image);
+            if (trySummary == null) {
+                logger.error("Failed to summarize image, but no error thrown.");
+                return ResponseEntity.internalServerError().build();
+            }
+            if (trySummary.isFailure()) {
+                Throwable error = requireNonNull(trySummary.getCause());
+
+                StringBuilder sb = new StringBuilder();
+                sb.append(error.getClass().getName());
+
+                if (error.getMessage() != null && !error.getMessage().isEmpty()) {
+                    sb.append(": ").append(error.getMessage());
+                }
+                return ResponseEntity.ok(new ImageUploadResponse(globalId, sb.toString(), null));
+            }
+
+            ImageSavedSummary summary = trySummary.get();
+            return ResponseEntity.ok(new ImageUploadResponse(globalId, null, summary));
+        } catch (Exception ex) {
+            logger.error("Problem uploading image.", ex);
+            return ResponseEntity.internalServerError().build();
         }
     }
 }
