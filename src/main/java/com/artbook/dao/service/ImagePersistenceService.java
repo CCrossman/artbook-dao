@@ -29,7 +29,7 @@ public class ImagePersistenceService {
 
     @PostConstruct
     public void init() {
-        logger.info("imageTypeHandlers: {}", imageTypeHandlers);
+        logger.debug("imageTypeHandlers: {}", imageTypeHandlers);
     }
 
     public Future<ImageSavedSummary> saveImage(UUID globalId, MultipartFile image) {
