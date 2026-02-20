@@ -3,10 +3,8 @@ package com.artbook.dao.controller;
 import com.artbook.dao.domain.*;
 import com.artbook.dao.service.ImagePersistenceService;
 import com.artbook.dao.service.ImageQueryService;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.vavr.concurrent.Future;
 import io.vavr.control.Try;
-import org.apache.el.util.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Objects.requireNonNull;
 
@@ -37,9 +36,12 @@ public class ImagesController {
         try {
             Page<ImageDTO> page = imageQueryService.getImageMetadata(ImageType.THUMBNAIL, queryParams);
             return ResponseEntity.ok(page);
-        } catch (Exception e) {
-            logger.error("Error reading images", e);
-            return ResponseEntity.internalServerError().build();
+        } catch (Exception ex) {
+            logger.error("Error reading images", ex);
+            return ResponseEntity.internalServerError()
+                .header("x-error-type", ex.getClass().getName())
+                .header("x-error-message", ex.getMessage())
+                .build();
         }
     }
 
@@ -77,12 +79,12 @@ public class ImagesController {
             @RequestParam("image") MultipartFile image,
             @RequestParam(value = "tags", required = false) List<String> tags
     ) {
+        UUID globalId = UUID.randomUUID();
         try {
             requireNonNull(description);
             requireNonNull(image);
             requireNonNull(title);
 
-            UUID globalId = UUID.randomUUID();
             ImageTagList imageTags = tags == null ? null : ImageTagList.fromRequestParameter(tags);
 
             logger.info("uploadImage");
@@ -92,13 +94,22 @@ public class ImagesController {
             logger.info("- image: {}", image);
             logger.info("- tags: {}", imageTags);
 
-            Try<ImageSavedSummary> trySummary = imagePersistenceService.saveImage(globalId, image);
-            if (trySummary == null) {
+            Future<ImageSavedSummary> futSummary = imagePersistenceService.saveImage(globalId, image);
+            if (futSummary == null) {
                 logger.error("Failed to summarize image, but no error thrown.");
                 return ResponseEntity.internalServerError().build();
             }
-            if (trySummary.isFailure()) {
-                Throwable error = requireNonNull(trySummary.getCause());
+
+            futSummary.await(15, TimeUnit.SECONDS);
+
+            Try<ImageSavedSummary> valueOrError = futSummary.getValue().getOrNull();
+            if (valueOrError == null) {
+                logger.error("Failed to summarize image, but no error thrown.");
+                return ResponseEntity.internalServerError().build();
+            }
+
+            if (valueOrError.isFailure()) {
+                Throwable error = requireNonNull(valueOrError.getCause());
 
                 StringBuilder sb = new StringBuilder();
                 sb.append(error.getClass().getName());
@@ -109,11 +120,15 @@ public class ImagesController {
                 return ResponseEntity.ok(new ImageUploadResponse(globalId, sb.toString(), null));
             }
 
-            ImageSavedSummary summary = trySummary.get();
+            ImageSavedSummary summary = valueOrError.get();
             return ResponseEntity.ok(new ImageUploadResponse(globalId, null, summary));
         } catch (Exception ex) {
             logger.error("Problem uploading image.", ex);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError()
+                .header("x-image-id", String.valueOf(globalId))
+                .header("x-error-type", ex.getClass().getName())
+                .header("x-error-message", ex.getMessage())
+                .build();
         }
     }
 }

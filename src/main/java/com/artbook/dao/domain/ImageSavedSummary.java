@@ -1,15 +1,16 @@
 package com.artbook.dao.domain;
 
+import io.vavr.control.Try;
+
 import java.util.Map;
 import java.util.UUID;
 
-import static com.artbook.dao.util.Preconditions.requireNonEmpty;
 import static java.util.Objects.requireNonNull;
 
-public record ImageSavedSummary(UUID globalId, String contentType, Map<ImageType, Object> byType) {
+public record ImageSavedSummary(UUID globalId, Map<ImageType, Try<Boolean>> subTaskCompletion, Try<Boolean> reducedCompletion) {
     public ImageSavedSummary {
         requireNonNull(globalId);
-        requireNonEmpty(contentType);
-        requireNonEmpty(byType);
+        requireNonNull(subTaskCompletion);
+        requireNonNull(reducedCompletion);
     }
 }

@@ -35,8 +35,8 @@ public class DefaultImageEntityConverter implements Converter<ImageEntity, Image
             b.tags(convertTags(item.getTags()));
             b.resource(resourceConverter.convert(item.getUri()));
             b.contentType(item.getContentType());
-            b.liked(item.isLiked());
-            b.likes(item.getLikes());
+//            b.liked(item.isLiked());
+//            b.likes(item.getLikes());
         }
         return b.build();
     }
