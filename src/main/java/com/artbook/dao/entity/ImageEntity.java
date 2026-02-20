@@ -16,6 +16,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Builder
+@Entity
 @EqualsAndHashCode
 @Getter
 @ToString
