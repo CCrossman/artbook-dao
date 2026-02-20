@@ -3,10 +3,7 @@ package com.artbook.dao.entity;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
-import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import lombok.*;
 import org.hibernate.annotations.TimeZoneStorage;
 import org.hibernate.annotations.TimeZoneStorageType;
 import org.hibernate.annotations.Type;
@@ -15,10 +12,12 @@ import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@AllArgsConstructor
 @Builder
 @Entity
 @EqualsAndHashCode
 @Getter
+@NoArgsConstructor
 @ToString
 public class ImageEntity {
 
