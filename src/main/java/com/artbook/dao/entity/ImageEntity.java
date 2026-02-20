@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode
 @Getter
 @NoArgsConstructor
+@Table(name = "images")
 @ToString
 public class ImageEntity {
 
