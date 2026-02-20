@@ -1,11 +1,18 @@
 package com.artbook.dao.domain;
 
-import static com.artbook.dao.util.Preconditions.requireNonEmpty;
+import java.util.UUID;
 
-public record ImageUploadResponse(Long imageId, String message) {
+import static com.artbook.dao.util.Preconditions.requireNonEmpty;
+import static java.util.Objects.requireNonNull;
+
+public record ImageUploadResponse(UUID globalId, String errorMessage, ImageSavedSummary summary) {
     public ImageUploadResponse {
-        if (imageId == null) {
-            requireNonEmpty(message, "message cannot be empty if imageId is null");
+        requireNonNull(globalId);
+
+        if (errorMessage == null || errorMessage.isBlank()) {
+            requireNonEmpty(summary);
+        } else if (summary == null) {
+            requireNonEmpty(errorMessage);
         }
     }
 }
